@@ -24,6 +24,7 @@ professional web design assets using Google Gemini. This skill teaches you
 |-----------------------|---------------------------------------------------|
 | `generate_web_asset`  | Generate any type of web image asset               |
 | `edit_web_asset`      | Modify an existing image                           |
+| `remove_background`   | Remove background from any image → transparent PNG |
 | `enhance_prompt`      | Preview the enhanced prompt before generating      |
 | `list_asset_types`    | Show all asset types, styles, and configurations   |
 | `batch_generate`      | Generate multiple related assets at once            |
@@ -114,6 +115,31 @@ Match the style to the project's design system:
 
 ---
 
+## Transparent Images (No Background)
+
+Use `transparent: true` on `generate_web_asset`, `edit_web_asset`, or `batch_generate` to produce images with no background (transparent PNG). This is ideal for:
+
+- **Icons** that need to sit on any colored background
+- **Logos** that must work on both light and dark themes
+- **Product images** for e-commerce with clean cutouts
+- **Illustrations** to overlay on sections
+- **Stickers / badges / UI elements**
+
+### When to use transparent:
+- The image will be placed over a colored or gradient background in CSS
+- The user asks for "no background", "transparent", "cutout", "isolated", or "PNG with alpha"
+- Icons, logos, and product shots — default to suggesting `transparent: true`
+
+### Standalone background removal:
+Use `remove_background` to strip the background from any existing image file. No need to regenerate — just pass the file path.
+
+```
+User: "Remove the background from this product photo"
+→ Use remove_background with input_image_path
+```
+
+---
+
 ## Workflow Patterns
 
 ### Pattern 1: Single Asset for a Section
@@ -152,12 +178,32 @@ You: First use enhance_prompt to show what will change,
 
 ### Pattern 4: Edit Existing Image
 ```
-User: "Make this image darker" or "Remove the background"
+User: "Make this image darker"
 You: Use edit_web_asset with the source image
 
 → Use edit_web_asset with:
   - input_image_path: path to existing image
   - edit_prompt: Specific edit instructions
+```
+
+### Pattern 5: Transparent Asset
+```
+User: "Create a logo for my app, no background"
+You: Generate with transparent: true
+
+→ Use generate_web_asset with:
+  - asset_type: "logo"
+  - transparent: true
+  - prompt: Describe the logo
+```
+
+### Pattern 6: Remove Background from Existing Image
+```
+User: "I have a product photo, remove the background"
+You: Use the standalone remove_background tool
+
+→ Use remove_background with:
+  - input_image_path: path to the image
 ```
 
 ---

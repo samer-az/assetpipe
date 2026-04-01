@@ -165,12 +165,12 @@ all in flat style with the same teal color palette
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `GEMINI_API_KEY` | ✅ | — | Google AI Studio API key |
+| `GEMINI_API_KEY` | ✅ | — | Google AI Studio API key (set by installer) |
 | `IMAGE_OUTPUT_DIR` | No | `./generated-images` | Output directory for images |
-| `GEMINI_MODEL` | No | `gemini-2.0-flash-exp` | Gemini model to use |
+| `GEMINI_MODEL` | No | `gemini-2.5-flash-image` | Gemini model to use |
 | `LOG_LEVEL` | No | `INFO` | Logging verbosity |
 
-Copy `.env.example` to `.env` and fill in your values.
+The only required config is `GEMINI_API_KEY`, which the installer prompts for automatically.
 
 ---
 
@@ -188,12 +188,10 @@ assetpipe/
 │   └── requirements.txt
 ├── skill/
 │   └── SKILL.md               # Claude Code skill
-├── install.sh                 # Automated installer
+├── install.sh                 # One-command installer
 ├── pyproject.toml             # Python package config
 ├── .env.example               # Environment template
 ├── .gitignore
-├── CONTRIBUTING.md
-├── LICENSE
 └── README.md
 ```
 
@@ -232,10 +230,6 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for details.
 
 ---
 
-## Contributing
-
-Contributions welcome! See [CONTRIBUTING.md](CONTRIBUTING.md).
-
 ## License
 
-[MIT](LICENSE)
+MIT

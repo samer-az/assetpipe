@@ -4,9 +4,7 @@ Uses the google-genai SDK for image generation and editing.
 """
 
 import asyncio
-import base64
 import logging
-from typing import Optional
 
 from google import genai
 from google.genai import types
@@ -17,7 +15,7 @@ logger = logging.getLogger("assetpipe.gemini")
 class GeminiProvider:
     """Handles image generation and editing via Google Gemini."""
 
-    def __init__(self, api_key: str, model: str = "gemini-2.0-flash-preview-image-generation"):
+    def __init__(self, api_key: str, model: str = "gemini-2.5-flash-image"):
         self.model = model
         self.client = genai.Client(api_key=api_key)
         logger.info(f"Gemini provider initialized with model: {model}")
@@ -48,9 +46,6 @@ class GeminiProvider:
     async def edit_image(self, image_bytes: bytes, edit_prompt: str) -> bytes:
         """Edit an existing image based on a text prompt. Returns PNG bytes."""
         logger.info(f"Editing image with prompt: {edit_prompt[:100]}...")
-
-        # Encode the input image
-        b64_image = base64.b64encode(image_bytes).decode()
 
         response = await asyncio.to_thread(
             self.client.models.generate_content,

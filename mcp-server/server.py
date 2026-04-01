@@ -24,6 +24,7 @@ from mcp.types import (
 )
 
 from providers.gemini import GeminiProvider
+from utils.background import remove_background
 
 # ---------------------------------------------------------------------------
 # Configuration
@@ -34,7 +35,7 @@ logging.basicConfig(level=getattr(logging, LOG_LEVEL, logging.INFO))
 logger = logging.getLogger("assetpipe")
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.0-flash-preview-image-generation")
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash-image")
 
 # Output dir: env var > ./generated-images relative to cwd
 IMAGE_OUTPUT_DIR = os.getenv("IMAGE_OUTPUT_DIR", os.path.join(os.getcwd(), "generated-images"))
@@ -223,6 +224,11 @@ async def list_tools() -> list[Tool]:
                         "default": "",
                         "description": "What to avoid in the image",
                     },
+                    "transparent": {
+                        "type": "boolean",
+                        "default": False,
+                        "description": "Remove the background to produce a transparent PNG. Great for icons, logos, illustrations, and product images.",
+                    },
                 },
                 "required": ["prompt"],
             },
@@ -248,6 +254,11 @@ async def list_tools() -> list[Tool]:
                         "type": "string",
                         "default": "",
                         "description": "Output filename (without extension). Auto-generated if empty.",
+                    },
+                    "transparent": {
+                        "type": "boolean",
+                        "default": False,
+                        "description": "Remove the background from the result.",
                     },
                 },
                 "required": ["input_image_path", "edit_prompt"],
@@ -320,8 +331,35 @@ async def list_tools() -> list[Tool]:
                         "default": "",
                         "description": "Shared color palette for consistency",
                     },
+                    "transparent": {
+                        "type": "boolean",
+                        "default": False,
+                        "description": "Remove backgrounds from all generated assets.",
+                    },
                 },
                 "required": ["assets"],
+            },
+        ),
+        Tool(
+            name="remove_background",
+            description=(
+                "Remove the background from an existing image to produce a "
+                "transparent PNG. Works on any image file."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "input_image_path": {
+                        "type": "string",
+                        "description": "Path to the image file",
+                    },
+                    "filename": {
+                        "type": "string",
+                        "default": "",
+                        "description": "Output filename (without extension). Auto-generated if empty.",
+                    },
+                },
+                "required": ["input_image_path"],
             },
         ),
     ]
@@ -340,6 +378,8 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent | ImageConte
             return await handle_list_asset_types()
         elif name == "batch_generate":
             return await handle_batch_generate(arguments)
+        elif name == "remove_background":
+            return await handle_remove_background(arguments)
         else:
             return [TextContent(type="text", text=f"Unknown tool: {name}")]
     except Exception as e:
@@ -355,14 +395,21 @@ async def handle_generate(args: dict) -> list[TextContent | ImageContent]:
     color_palette = args.get("color_palette", "")
     brand_context = args.get("brand_context", "")
     negative_prompt = args.get("negative_prompt", "")
+    transparent = args.get("transparent", False)
 
     enhanced = build_enhanced_prompt(prompt, asset_type, style, color_palette, brand_context)
+
+    if transparent:
+        enhanced += " Isolated subject on a plain solid white background, no shadows, no other elements."
 
     if negative_prompt:
         enhanced += f" Avoid: {negative_prompt}."
 
     gen = get_provider()
     image_bytes = await gen.generate_image(enhanced)
+
+    if transparent:
+        image_bytes = await remove_background(image_bytes)
 
     if not filename:
         ts = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -384,6 +431,7 @@ async def handle_generate(args: dict) -> list[TextContent | ImageContent]:
                     "path": abs_path,
                     "asset_type": asset_type,
                     "style": style or "default",
+                    "transparent": transparent,
                     "enhanced_prompt": enhanced,
                     "size_bytes": len(image_bytes),
                 },
@@ -398,6 +446,7 @@ async def handle_edit(args: dict) -> list[TextContent | ImageContent]:
     input_path = args["input_image_path"]
     edit_prompt = args["edit_prompt"]
     filename = args.get("filename", "")
+    transparent = args.get("transparent", False)
 
     if not Path(input_path).exists():
         return [TextContent(type="text", text=f"File not found: {input_path}")]
@@ -405,6 +454,9 @@ async def handle_edit(args: dict) -> list[TextContent | ImageContent]:
     input_bytes = Path(input_path).read_bytes()
     gen = get_provider()
     image_bytes = await gen.edit_image(input_bytes, edit_prompt)
+
+    if transparent:
+        image_bytes = await remove_background(image_bytes)
 
     if not filename:
         ts = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -425,6 +477,7 @@ async def handle_edit(args: dict) -> list[TextContent | ImageContent]:
                     "status": "success",
                     "path": abs_path,
                     "edit_prompt": edit_prompt,
+                    "transparent": transparent,
                     "size_bytes": len(image_bytes),
                 },
                 indent=2,
@@ -476,6 +529,7 @@ async def handle_batch_generate(args: dict) -> list[TextContent | ImageContent]:
     assets = args["assets"]
     brand_context = args.get("brand_context", "")
     color_palette = args.get("color_palette", "")
+    transparent = args.get("transparent", False)
     results: list[TextContent | ImageContent] = []
 
     for i, asset in enumerate(assets):
@@ -487,6 +541,7 @@ async def handle_batch_generate(args: dict) -> list[TextContent | ImageContent]:
                 "filename": asset.get("filename", ""),
                 "brand_context": brand_context,
                 "color_palette": color_palette,
+                "transparent": transparent,
             }
             res = await handle_generate(asset_args)
             results.extend(res)
@@ -501,6 +556,45 @@ async def handle_batch_generate(args: dict) -> list[TextContent | ImageContent]:
     )
     results.append(summary)
     return results
+
+
+async def handle_remove_background(args: dict) -> list[TextContent | ImageContent]:
+    input_path = args["input_image_path"]
+    filename = args.get("filename", "")
+
+    if not Path(input_path).exists():
+        return [TextContent(type="text", text=f"File not found: {input_path}")]
+
+    input_bytes = Path(input_path).read_bytes()
+    image_bytes = await remove_background(input_bytes)
+
+    if not filename:
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+        original_name = Path(input_path).stem
+        filename = f"{original_name}_transparent_{ts}"
+
+    out_dir = ensure_output_dir("transparent")
+    out_path = out_dir / f"{filename}.png"
+    out_path.write_bytes(image_bytes)
+
+    abs_path = str(out_path.resolve())
+    b64 = base64.b64encode(image_bytes).decode()
+
+    return [
+        TextContent(
+            type="text",
+            text=json.dumps(
+                {
+                    "status": "success",
+                    "path": abs_path,
+                    "original": input_path,
+                    "size_bytes": len(image_bytes),
+                },
+                indent=2,
+            ),
+        ),
+        ImageContent(type="image", data=b64, mimeType="image/png"),
+    ]
 
 
 # ---------------------------------------------------------------------------
