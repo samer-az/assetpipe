@@ -17,7 +17,7 @@ logger = logging.getLogger("assetpipe.gemini")
 class GeminiProvider:
     """Handles image generation and editing via Google Gemini."""
 
-    def __init__(self, api_key: str, model: str = "gemini-2.0-flash-exp"):
+    def __init__(self, api_key: str, model: str = "gemini-2.0-flash-preview-image-generation"):
         self.model = model
         self.client = genai.Client(api_key=api_key)
         logger.info(f"Gemini provider initialized with model: {model}")

@@ -33,9 +33,11 @@ LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
 logging.basicConfig(level=getattr(logging, LOG_LEVEL, logging.INFO))
 logger = logging.getLogger("assetpipe")
 
-IMAGE_OUTPUT_DIR = os.getenv("IMAGE_OUTPUT_DIR", "./generated-images")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.0-flash-exp")
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.0-flash-preview-image-generation")
+
+# Output dir: env var > ./generated-images relative to cwd
+IMAGE_OUTPUT_DIR = os.getenv("IMAGE_OUTPUT_DIR", os.path.join(os.getcwd(), "generated-images"))
 
 # ---------------------------------------------------------------------------
 # Prompt Enhancement Templates

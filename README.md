@@ -59,37 +59,13 @@ You: "Build me a landing page for a fitness app"
 
 ### Install
 
-**Option A: Automated**
-
 ```bash
 git clone https://github.com/YOUR_USERNAME/assetpipe.git
 cd assetpipe
 ./install.sh
 ```
 
-**Option B: Manual**
-
-```bash
-# 1. Clone
-git clone https://github.com/YOUR_USERNAME/assetpipe.git
-cd assetpipe
-
-# 2. Install Python deps
-pip install -r mcp-server/requirements.txt
-
-# 3. Register MCP server with Claude Code (globally)
-claude mcp add assetpipe \
-  --scope user \
-  --env GEMINI_API_KEY=your-key-here \
-  --env IMAGE_OUTPUT_DIR=./generated-images \
-  -- python3 $(pwd)/mcp-server/server.py
-
-# 4. Install the Skill
-mkdir -p ~/.claude/skills/assetpipe
-cp skill/SKILL.md ~/.claude/skills/assetpipe/SKILL.md
-
-# 5. Restart Claude Code
-```
+The installer handles everything: checks prerequisites, installs dependencies, prompts for your Gemini API key, registers the MCP server, and installs the skill. Just restart Claude Code when it's done.
 
 ### Verify
 
