@@ -39,3 +39,12 @@ def load_style(start_dir: Path | None = None) -> dict | None:
     except (json.JSONDecodeError, OSError) as e:
         logger.warning(f"Failed to read style file {path}: {e}")
         return None
+
+
+def save_style(data: dict, target_dir: Path | None = None) -> Path:
+    """Write .assetpipe-style.json to target_dir (defaults to cwd)."""
+    directory = Path(target_dir) if target_dir else Path.cwd()
+    path = directory / STYLE_FILENAME
+    path.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
+    logger.info(f"Saved project style to {path}")
+    return path

@@ -76,3 +76,28 @@ class TestLoadStyle:
 
         result = load_style(style_in_parent)
         assert result == sample_style
+
+
+class TestSaveStyle:
+    def test_creates_style_file(self, tmp_path, sample_style):
+        from utils.styles import save_style
+
+        result = save_style(sample_style, tmp_path)
+        assert result == tmp_path / STYLE_FILENAME
+        assert result.exists()
+        saved = json.loads(result.read_text())
+        assert saved == sample_style
+
+    def test_defaults_to_cwd(self, tmp_path, sample_style, monkeypatch):
+        from utils.styles import save_style
+
+        monkeypatch.chdir(tmp_path)
+        result = save_style(sample_style)
+        assert result == tmp_path / STYLE_FILENAME
+
+    def test_writes_pretty_json(self, tmp_path, sample_style):
+        from utils.styles import save_style
+
+        save_style(sample_style, tmp_path)
+        content = (tmp_path / STYLE_FILENAME).read_text()
+        assert "\n" in content  # Pretty-printed, not single line
