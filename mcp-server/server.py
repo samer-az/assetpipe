@@ -25,6 +25,7 @@ from mcp.types import (
 
 from providers.gemini import GeminiProvider
 from utils.background import remove_background
+from utils.styles import find_style_file, load_style, save_style, merge_style_with_args
 
 # ---------------------------------------------------------------------------
 # Configuration
@@ -362,6 +363,114 @@ async def list_tools() -> list[Tool]:
                 "required": ["input_image_path"],
             },
         ),
+        Tool(
+            name="init_project_style",
+            description=(
+                "Initialize a project style profile (.assetpipe-style.json). "
+                "Sets default style, colors, brand context, and directives "
+                "that apply to all future image generations in this project."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "description": "Project name (for display/logging)",
+                    },
+                    "style": {
+                        "type": "string",
+                        "enum": list(STYLE_MODIFIERS.keys()),
+                        "default": "",
+                        "description": "Default visual style for the project",
+                    },
+                    "color_palette": {
+                        "type": "string",
+                        "default": "",
+                        "description": "Default color palette, e.g. '#FF5733, #33FF57'",
+                    },
+                    "brand_context": {
+                        "type": "string",
+                        "default": "",
+                        "description": "Brand or project context for consistency",
+                    },
+                    "negative_prompt": {
+                        "type": "string",
+                        "default": "",
+                        "description": "Things to always avoid in generated images",
+                    },
+                    "style_directives": {
+                        "type": "string",
+                        "default": "",
+                        "description": "Free-text style instructions appended to every prompt",
+                    },
+                    "project_dir": {
+                        "type": "string",
+                        "default": "",
+                        "description": "Directory to create the file in (defaults to cwd)",
+                    },
+                },
+                "required": ["name"],
+            },
+        ),
+        Tool(
+            name="update_project_style",
+            description=(
+                "Update fields in an existing project style profile. "
+                "Only the provided fields are changed — omitted fields stay as-is."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "description": "Update project name",
+                    },
+                    "style": {
+                        "type": "string",
+                        "enum": list(STYLE_MODIFIERS.keys()),
+                        "description": "Update default visual style",
+                    },
+                    "color_palette": {
+                        "type": "string",
+                        "description": "Update default color palette",
+                    },
+                    "brand_context": {
+                        "type": "string",
+                        "description": "Update brand context",
+                    },
+                    "negative_prompt": {
+                        "type": "string",
+                        "description": "Update things to avoid",
+                    },
+                    "style_directives": {
+                        "type": "string",
+                        "description": "Update free-text style instructions",
+                    },
+                    "project_dir": {
+                        "type": "string",
+                        "default": "",
+                        "description": "Directory to search in (defaults to walk-up discovery)",
+                    },
+                },
+            },
+        ),
+        Tool(
+            name="get_project_style",
+            description=(
+                "Read the current project style profile. Returns the style "
+                "configuration and file path, or a message if no style is configured."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "project_dir": {
+                        "type": "string",
+                        "default": "",
+                        "description": "Directory to search in (defaults to walk-up discovery)",
+                    },
+                },
+            },
+        ),
     ]
 
 
@@ -380,6 +489,12 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent | ImageConte
             return await handle_batch_generate(arguments)
         elif name == "remove_background":
             return await handle_remove_background(arguments)
+        elif name == "init_project_style":
+            return await handle_init_project_style(arguments)
+        elif name == "update_project_style":
+            return await handle_update_project_style(arguments)
+        elif name == "get_project_style":
+            return await handle_get_project_style(arguments)
         else:
             return [TextContent(type="text", text=f"Unknown tool: {name}")]
     except Exception as e:
@@ -594,6 +709,147 @@ async def handle_remove_background(args: dict) -> list[TextContent | ImageConten
             ),
         ),
         ImageContent(type="image", data=b64, mimeType="image/png"),
+    ]
+
+
+async def handle_init_project_style(args: dict) -> list[TextContent]:
+    name = args["name"]
+    project_dir = args.get("project_dir", "") or None
+    target = Path(project_dir) if project_dir else Path.cwd()
+
+    # Check if file already exists in target directory
+    existing = target / ".assetpipe-style.json"
+    if existing.is_file():
+        return [
+            TextContent(
+                type="text",
+                text=json.dumps(
+                    {
+                        "status": "error",
+                        "message": f"Style file already exists at {existing}. Use update_project_style to modify it.",
+                    },
+                    indent=2,
+                ),
+            )
+        ]
+
+    style_data = {"name": name}
+    for field in ("style", "color_palette", "brand_context", "negative_prompt", "style_directives"):
+        val = args.get(field, "")
+        if val:
+            style_data[field] = val
+
+    path = save_style(style_data, target)
+
+    return [
+        TextContent(
+            type="text",
+            text=json.dumps(
+                {
+                    "status": "success",
+                    "message": f"Project style '{name}' created.",
+                    "path": str(path.resolve()),
+                    "style": style_data,
+                },
+                indent=2,
+            ),
+        )
+    ]
+
+
+async def handle_update_project_style(args: dict) -> list[TextContent]:
+    project_dir = args.get("project_dir", "") or None
+    start = Path(project_dir) if project_dir else None
+
+    style_file = find_style_file(start)
+    if style_file is None:
+        return [
+            TextContent(
+                type="text",
+                text=json.dumps(
+                    {
+                        "status": "error",
+                        "message": "No .assetpipe-style.json found. Use init_project_style first.",
+                    },
+                    indent=2,
+                ),
+            )
+        ]
+
+    style_data = json.loads(style_file.read_text(encoding="utf-8"))
+
+    updatable = ("name", "style", "color_palette", "brand_context", "negative_prompt", "style_directives")
+    updated_fields = []
+    for field in updatable:
+        if field in args:
+            style_data[field] = args[field]
+            updated_fields.append(field)
+
+    if not updated_fields:
+        return [
+            TextContent(
+                type="text",
+                text=json.dumps(
+                    {
+                        "status": "error",
+                        "message": "No style fields provided to update.",
+                    },
+                    indent=2,
+                ),
+            )
+        ]
+
+    save_style(style_data, style_file.parent)
+
+    return [
+        TextContent(
+            type="text",
+            text=json.dumps(
+                {
+                    "status": "success",
+                    "message": f"Updated fields: {', '.join(updated_fields)}",
+                    "path": str(style_file.resolve()),
+                    "style": style_data,
+                },
+                indent=2,
+            ),
+        )
+    ]
+
+
+async def handle_get_project_style(args: dict) -> list[TextContent]:
+    project_dir = args.get("project_dir", "") or None
+    start = Path(project_dir) if project_dir else None
+
+    style_file = find_style_file(start)
+    if style_file is None:
+        return [
+            TextContent(
+                type="text",
+                text=json.dumps(
+                    {
+                        "status": "no_style",
+                        "message": "No project style configured. Use init_project_style to create one.",
+                    },
+                    indent=2,
+                ),
+            )
+        ]
+
+    style_data = json.loads(style_file.read_text(encoding="utf-8"))
+
+    return [
+        TextContent(
+            type="text",
+            text=json.dumps(
+                {
+                    "status": "success",
+                    "path": str(style_file.resolve()),
+                    "style": style_data,
+                },
+                indent=2,
+            ),
+        )
     ]
 
 
