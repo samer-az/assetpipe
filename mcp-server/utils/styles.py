@@ -48,3 +48,36 @@ def save_style(data: dict, target_dir: Path | None = None) -> Path:
     path.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
     logger.info(f"Saved project style to {path}")
     return path
+
+
+MERGEABLE_FIELDS = ("style", "color_palette", "brand_context", "negative_prompt")
+
+
+def merge_style_with_args(style_data: dict, call_args: dict) -> tuple[dict, list[str]]:
+    """Merge project style defaults into call arguments.
+
+    Per-call values win. Returns (merged_args, override_notes).
+    """
+    merged = dict(call_args)
+    notes: list[str] = []
+
+    for field in MERGEABLE_FIELDS:
+        project_val = style_data.get(field, "")
+        call_val = call_args.get(field, "")
+
+        if call_val:
+            # Per-call value provided — use it, note if different from project default
+            if project_val and call_val != project_val:
+                notes.append(
+                    f"{field}: '{call_val}' overrides project default '{project_val}'"
+                )
+        elif project_val:
+            # No per-call value — fill from project style
+            merged[field] = project_val
+
+    # style_directives is always included (no per-call equivalent)
+    directives = style_data.get("style_directives", "")
+    if directives:
+        merged["style_directives"] = directives
+
+    return merged, notes

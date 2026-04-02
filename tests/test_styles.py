@@ -101,3 +101,60 @@ class TestSaveStyle:
         save_style(sample_style, tmp_path)
         content = (tmp_path / STYLE_FILENAME).read_text()
         assert "\n" in content  # Pretty-printed, not single line
+
+
+class TestMergeStyleWithArgs:
+    def test_fills_missing_args_from_style(self, sample_style):
+        from utils.styles import merge_style_with_args
+
+        call_args = {"prompt": "a sunset"}
+        merged, notes = merge_style_with_args(sample_style, call_args)
+        assert merged["style"] == "gradient"
+        assert merged["color_palette"] == "#FF0000, #00FF00"
+        assert merged["brand_context"] == "Test brand"
+        assert merged["negative_prompt"] == "blurry, low quality"
+        assert merged["style_directives"] == "Keep it warm and friendly"
+        assert merged["prompt"] == "a sunset"
+        assert notes == []
+
+    def test_per_call_overrides_style(self, sample_style):
+        from utils.styles import merge_style_with_args
+
+        call_args = {"prompt": "a sunset", "style": "neon", "color_palette": "#000000"}
+        merged, notes = merge_style_with_args(sample_style, call_args)
+        assert merged["style"] == "neon"
+        assert merged["color_palette"] == "#000000"
+        assert len(notes) == 2
+
+    def test_override_notes_describe_changes(self, sample_style):
+        from utils.styles import merge_style_with_args
+
+        call_args = {"prompt": "a sunset", "style": "neon"}
+        merged, notes = merge_style_with_args(sample_style, call_args)
+        assert len(notes) == 1
+        assert "neon" in notes[0]
+        assert "gradient" in notes[0]
+
+    def test_empty_string_does_not_override(self, sample_style):
+        from utils.styles import merge_style_with_args
+
+        call_args = {"prompt": "a sunset", "style": ""}
+        merged, notes = merge_style_with_args(sample_style, call_args)
+        assert merged["style"] == "gradient"
+        assert notes == []
+
+    def test_style_directives_always_included(self, sample_style):
+        from utils.styles import merge_style_with_args
+
+        call_args = {"prompt": "a sunset"}
+        merged, notes = merge_style_with_args(sample_style, call_args)
+        assert merged["style_directives"] == "Keep it warm and friendly"
+
+    def test_preserves_extra_call_args(self, sample_style):
+        from utils.styles import merge_style_with_args
+
+        call_args = {"prompt": "a sunset", "filename": "test", "transparent": True}
+        merged, notes = merge_style_with_args(sample_style, call_args)
+        assert merged["prompt"] == "a sunset"
+        assert merged["filename"] == "test"
+        assert merged["transparent"] is True
