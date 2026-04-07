@@ -77,6 +77,14 @@ class TestLoadStyle:
         result = load_style(style_in_parent)
         assert result == sample_style
 
+    def test_returns_none_for_malformed_json(self, tmp_path):
+        from utils.styles import load_style
+
+        style_file = tmp_path / STYLE_FILENAME
+        style_file.write_text("{ not valid json !!!")
+        result = load_style(tmp_path)
+        assert result is None
+
 
 class TestSaveStyle:
     def test_creates_style_file(self, tmp_path, sample_style):

@@ -816,7 +816,18 @@ async def handle_update_project_style(args: dict) -> list[TextContent]:
             )
         ]
 
-    style_data = json.loads(style_file.read_text(encoding="utf-8"))
+    try:
+        style_data = json.loads(style_file.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError) as e:
+        return [
+            TextContent(
+                type="text",
+                text=json.dumps(
+                    {"status": "error", "message": f"Failed to read style file: {e}"},
+                    indent=2,
+                ),
+            )
+        ]
 
     updatable = ("name", "style", "color_palette", "brand_context", "negative_prompt", "style_directives")
     updated_fields = []
@@ -876,7 +887,18 @@ async def handle_get_project_style(args: dict) -> list[TextContent]:
             )
         ]
 
-    style_data = json.loads(style_file.read_text(encoding="utf-8"))
+    try:
+        style_data = json.loads(style_file.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError) as e:
+        return [
+            TextContent(
+                type="text",
+                text=json.dumps(
+                    {"status": "error", "message": f"Failed to read style file: {e}"},
+                    indent=2,
+                ),
+            )
+        ]
 
     return [
         TextContent(
