@@ -34,6 +34,10 @@ Homepage = "https://github.com/YOUR_USERNAME/assetpipe"
 Repository = "https://github.com/YOUR_USERNAME/assetpipe"
 Issues = "https://github.com/YOUR_USERNAME/assetpipe/issues"
 
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["mcp-server"]
+
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["mcp-server*"]
