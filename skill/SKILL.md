@@ -28,6 +28,9 @@ professional web design assets using Google Gemini. This skill teaches you
 | `enhance_prompt`      | Preview the enhanced prompt before generating      |
 | `list_asset_types`    | Show all asset types, styles, and configurations   |
 | `batch_generate`      | Generate multiple related assets at once            |
+| `init_project_style`  | Create a project style profile for consistent generation |
+| `update_project_style` | Update fields in the project style profile              |
+| `get_project_style`   | Read the current project style configuration             |
 
 ---
 
@@ -236,6 +239,55 @@ When working on a multi-page project, maintain consistency by:
 2. **Reusing parameters**: Keep the same `brand_context`, `color_palette`, and `style` across all generations
 3. **Using batch_generate**: When creating multiple assets, batch them to ensure consistency
 4. **Documenting choices**: After the first successful generation, note the parameters used for future reference
+
+---
+
+## Project Style Management
+
+AssetPipe supports per-project style profiles that automatically apply to all image generations. Styles are stored in a `.assetpipe-style.json` file in the project root.
+
+### Setting up a project style
+
+On the **first image generation** for a project:
+
+1. Call `get_project_style` to check if a style exists
+2. If no style exists, ask the user about their design preferences:
+   - What visual style? (flat, gradient, minimal, etc.)
+   - What colors? (brand palette or general direction)
+   - What's the project about? (brand context)
+   - Any style directives? (e.g. "warm and personal", "corporate and clean")
+3. Call `init_project_style` with their answers
+
+### How it works
+
+Once a style is configured:
+- All `generate_web_asset`, `batch_generate`, `edit_web_asset`, and `enhance_prompt` calls automatically load and apply the project style
+- Per-call parameters override project defaults (e.g., passing `style: "neon"` overrides the project's default style)
+- When an override is detected, the response includes a `style_note` — mention this to the user so they're aware
+- `style_directives` (free-text instructions) are always appended to prompts and cannot be overridden per-call
+
+### Updating styles
+
+Use `update_project_style` to change specific fields without affecting others. Common scenarios:
+- User wants to change the color palette mid-project
+- User wants to add a negative prompt after seeing unwanted patterns
+- User refines the brand context as the project evolves
+
+### Workflow Pattern 7: Setting Up Project Style
+
+```
+User: "I'm building a SaaS dashboard for a fintech startup"
+You: Check for existing style → none found → ask about preferences
+
+→ Use init_project_style with:
+  - name: "Fintech Dashboard"
+  - style: "minimal"
+  - color_palette: "#1E3A5F, #4DA8DA, #F0F4F8"
+  - brand_context: "Fintech SaaS, professional, trustworthy, clean"
+  - style_directives: "Modern and data-driven aesthetic, blue tones"
+
+→ All subsequent generate_web_asset calls automatically use these defaults
+```
 
 ---
 
