@@ -145,6 +145,7 @@ def build_enhanced_prompt(
     style: str = "",
     color_palette: str = "",
     brand_context: str = "",
+    style_directives: str = "",
 ) -> str:
     """Build an enhanced prompt from user input + asset template + style."""
     template = ASSET_TEMPLATES.get(asset_type, ASSET_TEMPLATES["custom"])
@@ -163,6 +164,9 @@ def build_enhanced_prompt(
 
     if brand_context:
         parts.append(f"Brand context: {brand_context}.")
+
+    if style_directives:
+        parts.append(style_directives)
 
     if template["suffix"]:
         parts.append(template["suffix"])
@@ -503,6 +507,12 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent | ImageConte
 
 
 async def handle_generate(args: dict) -> list[TextContent | ImageContent]:
+    # Load project style and merge
+    style_data = load_style()
+    style_notes = []
+    if style_data:
+        args, style_notes = merge_style_with_args(style_data, args)
+
     prompt = args["prompt"]
     asset_type = args.get("asset_type", "custom")
     style = args.get("style", "")
@@ -511,8 +521,11 @@ async def handle_generate(args: dict) -> list[TextContent | ImageContent]:
     brand_context = args.get("brand_context", "")
     negative_prompt = args.get("negative_prompt", "")
     transparent = args.get("transparent", False)
+    style_directives = args.get("style_directives", "")
 
-    enhanced = build_enhanced_prompt(prompt, asset_type, style, color_palette, brand_context)
+    enhanced = build_enhanced_prompt(
+        prompt, asset_type, style, color_palette, brand_context, style_directives
+    )
 
     if transparent:
         enhanced += " Isolated subject on a plain solid white background, no shadows, no other elements."
@@ -537,22 +550,22 @@ async def handle_generate(args: dict) -> list[TextContent | ImageContent]:
     abs_path = str(out_path.resolve())
     b64 = base64.b64encode(image_bytes).decode()
 
+    response_data = {
+        "status": "success",
+        "path": abs_path,
+        "asset_type": asset_type,
+        "style": style or "default",
+        "transparent": transparent,
+        "enhanced_prompt": enhanced,
+        "size_bytes": len(image_bytes),
+        "project_style": style_data.get("name") if style_data else None,
+    }
+
+    if style_notes:
+        response_data["style_note"] = "; ".join(style_notes)
+
     return [
-        TextContent(
-            type="text",
-            text=json.dumps(
-                {
-                    "status": "success",
-                    "path": abs_path,
-                    "asset_type": asset_type,
-                    "style": style or "default",
-                    "transparent": transparent,
-                    "enhanced_prompt": enhanced,
-                    "size_bytes": len(image_bytes),
-                },
-                indent=2,
-            ),
-        ),
+        TextContent(type="text", text=json.dumps(response_data, indent=2)),
         ImageContent(type="image", data=b64, mimeType="image/png"),
     ]
 
