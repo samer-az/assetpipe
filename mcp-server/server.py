@@ -579,6 +579,16 @@ async def handle_edit(args: dict) -> list[TextContent | ImageContent]:
     if not Path(input_path).exists():
         return [TextContent(type="text", text=f"File not found: {input_path}")]
 
+    # Load project style — only apply style_directives and negative_prompt
+    style_data = load_style()
+    if style_data:
+        directives = style_data.get("style_directives", "")
+        if directives:
+            edit_prompt = f"{edit_prompt} {directives}"
+        neg = style_data.get("negative_prompt", "")
+        if neg:
+            edit_prompt += f" Avoid: {neg}."
+
     input_bytes = Path(input_path).read_bytes()
     gen = get_provider()
     image_bytes = await gen.edit_image(input_bytes, edit_prompt)
@@ -607,6 +617,7 @@ async def handle_edit(args: dict) -> list[TextContent | ImageContent]:
                     "edit_prompt": edit_prompt,
                     "transparent": transparent,
                     "size_bytes": len(image_bytes),
+                    "project_style": style_data.get("name") if style_data else None,
                 },
                 indent=2,
             ),
@@ -616,30 +627,37 @@ async def handle_edit(args: dict) -> list[TextContent | ImageContent]:
 
 
 async def handle_enhance_prompt(args: dict) -> list[TextContent]:
+    # Load project style and merge
+    style_data = load_style()
+    style_notes = []
+    if style_data:
+        args, style_notes = merge_style_with_args(style_data, args)
+
     prompt = args["prompt"]
     asset_type = args.get("asset_type", "custom")
     style = args.get("style", "")
     color_palette = args.get("color_palette", "")
     brand_context = args.get("brand_context", "")
+    style_directives = args.get("style_directives", "")
 
-    enhanced = build_enhanced_prompt(prompt, asset_type, style, color_palette, brand_context)
+    enhanced = build_enhanced_prompt(
+        prompt, asset_type, style, color_palette, brand_context, style_directives
+    )
     template = ASSET_TEMPLATES.get(asset_type, ASSET_TEMPLATES["custom"])
 
-    return [
-        TextContent(
-            type="text",
-            text=json.dumps(
-                {
-                    "original_prompt": prompt,
-                    "enhanced_prompt": enhanced,
-                    "asset_type": asset_type,
-                    "style": style or "none",
-                    "recommended_size": template["default_size"],
-                },
-                indent=2,
-            ),
-        )
-    ]
+    response_data = {
+        "original_prompt": prompt,
+        "enhanced_prompt": enhanced,
+        "asset_type": asset_type,
+        "style": style or "none",
+        "recommended_size": template["default_size"],
+        "project_style": style_data.get("name") if style_data else None,
+    }
+
+    if style_notes:
+        response_data["style_note"] = "; ".join(style_notes)
+
+    return [TextContent(type="text", text=json.dumps(response_data, indent=2))]
 
 
 async def handle_list_asset_types() -> list[TextContent]:
@@ -650,6 +668,15 @@ async def handle_list_asset_types() -> list[TextContent]:
         },
         "styles": {k: v for k, v in STYLE_MODIFIERS.items()},
     }
+
+    style_data = load_style()
+    if style_data:
+        style_file = find_style_file()
+        info["project_style"] = {
+            "path": str(style_file.resolve()) if style_file else None,
+            **style_data,
+        }
+
     return [TextContent(type="text", text=json.dumps(info, indent=2))]
 
 
